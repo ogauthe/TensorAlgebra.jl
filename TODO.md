@@ -1,0 +1,2 @@
+- Add Aqua tests.
+- Use latest version of TensorOperations.jl in tests.

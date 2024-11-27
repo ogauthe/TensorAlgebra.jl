@@ -1,8 +1,12 @@
-using ..BackendSelection: Algorithm, @Algorithm_str
-
 # TODO: Add `contract!!` definitions as pass-throughs to `contract!`.
 
-default_contract_alg() = Algorithm"matricize"()
+abstract type Algorithm end
+
+Algorithm(alg::Algorithm) = alg
+
+struct Matricize <: Algorithm end
+
+default_contract_alg() = Matricize()
 
 # Required interface if not using
 # matricized contraction.
