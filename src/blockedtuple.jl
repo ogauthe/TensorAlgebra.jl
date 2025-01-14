@@ -39,6 +39,8 @@ end
 function Base.getindex(bt::AbstractBlockTuple, bi::BlockIndexRange{1})
   return bt[Block(bi)][only(bi.indices)]
 end
+# needed for nested broadcast in Julia < 1.11
+Base.getindex(bt::AbstractBlockTuple, ci::CartesianIndex{1}) = bt[only(Tuple(ci))]
 
 Base.iterate(bt::AbstractBlockTuple) = iterate(Tuple(bt))
 Base.iterate(bt::AbstractBlockTuple, i::Int) = iterate(Tuple(bt), i)
@@ -51,6 +53,14 @@ function Base.map(f, bt::AbstractBlockTuple)
   BL = blocklengths(bt)
   # use Val to preserve compile time knowledge of BL
   return widened_constructorof(typeof(bt))(map(f, Tuple(bt)), Val(BL))
+end
+
+function Base.show(io::IO, bt::AbstractBlockTuple)
+  return print(io, nameof(typeof(bt)), blocks(bt))
+end
+function Base.show(io::IO, ::MIME"text/plain", bt::AbstractBlockTuple)
+  println(io, typeof(bt))
+  return print(io, blocks(bt))
 end
 
 # Broadcast interface
@@ -71,6 +81,8 @@ function Base.copy(
 ) where {BlockLengths,BT}
   return widened_constructorof(BT)(bc.f.((Tuple.(bc.args))...), Val(BlockLengths))
 end
+
+Base.ndims(::Type{<:AbstractBlockTuple}) = 1  # needed in nested broadcast
 
 # BlockArrays interface
 BlockArrays.blockfirsts(::AbstractBlockTuple{0}) = ()
