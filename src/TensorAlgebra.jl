@@ -2,9 +2,9 @@ module TensorAlgebra
 
 export contract, contract!
 
+include("blockedtuple.jl")
 include("blockedpermutation.jl")
 include("BaseExtensions/BaseExtensions.jl")
-include("blockedtuple.jl")
 include("fusedims.jl")
 include("splitdims.jl")
 include("contract/contract.jl")

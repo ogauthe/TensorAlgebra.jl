@@ -3,24 +3,27 @@ using Test: @test, @test_throws
 using BlockArrays: Block, blocklength, blocklengths, blockedrange, blockisequal, blocks
 using TestExtras: @constinferred
 
-using TensorAlgebra: BlockedTuple, tuplemortar
+using TensorAlgebra: BlockedTuple, blockeachindex, tuplemortar
 
 @testset "BlockedTuple" begin
   flat = (true, 'a', 2, "b", 3.0)
   divs = (1, 2, 2)
 
-  bt = BlockedTuple{divs}(flat)
+  bt = @constinferred BlockedTuple{3,divs}(flat)
+  @test bt isa BlockedTuple{3}
+  @test (@constinferred blockeachindex(bt)) == (Block(1), Block(2), Block(3))
 
   @test (@constinferred Tuple(bt)) == flat
-  @test bt == tuplemortar(((true,), ('a', 2), ("b", 3.0)))
-  @test bt == BlockedTuple(flat, divs)
-  @test BlockedTuple(bt) == bt
+  @test (@constinferred tuplemortar(((true,), ('a', 2), ("b", 3.0)))) == bt
+  @test BlockedTuple(flat, divs) == bt
+  @test (@constinferred BlockedTuple(bt)) == bt
   @test blocklength(bt) == 3
   @test blocklengths(bt) == (1, 2, 2)
   @test (@constinferred blocks(bt)) == ((true,), ('a', 2), ("b", 3.0))
 
   @test (@constinferred bt[1]) == true
   @test (@constinferred bt[2]) == 'a'
+  @test (@constinferred map(identity, bt)) == bt
 
   # it is hard to make bt[Block(1)] type stable as compile-time knowledge of 1 is lost in Block
   @test bt[Block(1)] == blocks(bt)[1]
@@ -37,19 +40,41 @@ using TensorAlgebra: BlockedTuple, tuplemortar
   @test iterate(bt, 2) == ('a', 3)
   @test blockisequal(only(axes(bt)), blockedrange([1, 2, 2]))
 
-  @test_throws DimensionMismatch BlockedTuple{(1, 2, 3)}(flat)
+  @test_throws DimensionMismatch BlockedTuple{2,(1, 2, 2)}(flat)
+  @test_throws DimensionMismatch BlockedTuple{3,(1, 2, 3)}(flat)
+  @test_throws DimensionMismatch BlockedTuple{3,(-1, 3, 3)}(flat)
 
   bt = tuplemortar(((1,), (4, 2), (5, 3)))
+  @test bt isa BlockedTuple
   @test Tuple(bt) == (1, 4, 2, 5, 3)
   @test blocklengths(bt) == (1, 2, 2)
-  @test deepcopy(bt) == bt
+  @test (@constinferred deepcopy(bt)) == bt
 
   @test (@constinferred map(n -> n + 1, bt)) ==
-    BlockedTuple{blocklengths(bt)}(Tuple(bt) .+ 1)
-  @test bt .+ tuplemortar(((1,), (1, 1), (1, 1))) ==
-    BlockedTuple{blocklengths(bt)}(Tuple(bt) .+ 1)
+    BlockedTuple{3,blocklengths(bt)}(Tuple(bt) .+ 1)
+  @test (@constinferred bt .+ tuplemortar(((1,), (1, 1), (1, 1)))) ==
+    BlockedTuple{3,blocklengths(bt)}(Tuple(bt) .+ 1)
   @test_throws DimensionMismatch bt .+ tuplemortar(((1, 1), (1, 1), (1,)))
 
   bt = tuplemortar(((1:2, 1:2), (1:3,)))
   @test length.(bt) == tuplemortar(((2, 2), (3,)))
+
+  # empty blocks
+  bt = tuplemortar(((1,), (), (5, 3)))
+  @test bt isa BlockedTuple{3}
+  @test Tuple(bt) == (1, 5, 3)
+  @test blocklengths(bt) == (1, 0, 2)
+  @test (@constinferred blocks(bt)) == ((1,), (), (5, 3))
+
+  bt = tuplemortar(((), ()))
+  @test bt isa BlockedTuple{2}
+  @test Tuple(bt) == ()
+  @test blocklengths(bt) == (0, 0)
+  @test (@constinferred blocks(bt)) == ((), ())
+
+  bt = tuplemortar(())
+  @test bt isa BlockedTuple{0}
+  @test Tuple(bt) == ()
+  @test blocklengths(bt) == ()
+  @test (@constinferred blocks(bt)) == ()
 end
