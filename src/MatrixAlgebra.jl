@@ -20,7 +20,7 @@ export eigen,
   svdvals!,
   truncerr
 
-using LinearAlgebra: LinearAlgebra
+using LinearAlgebra: LinearAlgebra, norm
 using MatrixAlgebraKit
 
 for (f, f_full, f_compact) in (
@@ -171,6 +171,58 @@ function MatrixAlgebraKit.findtruncated(values::AbstractVector, strategy::Trunca
     end
   end
   return Base.OneTo(rank)
+end
+
+struct TruncationDegenerate{Strategy<:TruncationStrategy,T<:Real} <: TruncationStrategy
+  strategy::Strategy
+  atol::T
+  rtol::T
+end
+
+"""
+    truncdegen(trunc::TruncationStrategy; atol::Real=0, rtol::Real=0)
+
+Modify a truncation strategy so that if the truncation falls within
+a degenerate subspace, the entire subspace gets truncated as well.
+A value `val` is considered degenerate if
+`norm(val - truncval) ≤ max(atol, rtol * norm(truncval))`
+where `truncval` is the largest value truncated by the original
+truncation strategy `trunc`.
+
+For now, this truncation strategy assumes the spectrum being truncated
+has already been reverse sorted and the strategy being wrapped
+outputs a contiguous subset of values including the largest one. It
+also only truncates for now, so may not respect if a minimum dimension
+was requested in the strategy being wrapped. These restrictions may
+be lifted in the future or provided through a different truncation strategy.
+"""
+function truncdegen(strategy::TruncationStrategy; atol::Real=0, rtol::Real=0)
+  return TruncationDegenerate(strategy, promote(atol, rtol)...)
+end
+
+using MatrixAlgebraKit: findtruncated
+
+function MatrixAlgebraKit.findtruncated(
+  values::AbstractVector, strategy::TruncationDegenerate
+)
+  Base.require_one_based_indexing(values)
+  issorted(values; rev=true) || throw(ArgumentError("Values must be reverse sorted."))
+  indices_collection = findtruncated(values, strategy.strategy)
+  indices = Base.OneTo(maximum(indices_collection))
+  indices_collection == indices ||
+    throw(ArgumentError("Truncation must be a contiguous range."))
+  if length(indices_collection) == length(values)
+    # No truncation occurred.
+    return indices
+  end
+  # The largest truncated value.
+  truncval = values[last(indices) + 1]
+  # Tolerance of determining if a value is degenerate.
+  atol = max(strategy.atol, strategy.rtol * abs(truncval))
+  for rank in reverse(indices)
+    ≈(values[rank], truncval; atol, rtol=0) || return Base.OneTo(rank)
+  end
+  return Base.OneTo(0)
 end
 
 end
