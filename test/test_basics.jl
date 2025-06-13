@@ -5,6 +5,7 @@ using StableRNGs: StableRNG
 using TensorOperations: TensorOperations
 
 using TensorAlgebra:
+  BlockedTuple,
   blockedpermvcat,
   permuteblockeddims,
   permuteblockeddims!,
@@ -61,6 +62,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
     @test_throws MethodError matricize(a, (1, 2), (3,), (4,))
     @test_throws MethodError matricize(a, (1, 2, 3, 4))
+    @test_throws ArgumentError matricize(a, blockedpermvcat((1, 2), (3,)))
 
     v = ones(elt, 2)
     a_fused = matricize(v, (1,), ())
@@ -122,10 +124,23 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     a = unmatricize(m, (), ())
     @test a isa Array{elt,0}
     @test a[] == m[1, 1]
+
+    @test_throws ArgumentError unmatricize(m, (), blockedpermvcat((1, 2), (3,)))
+    @test_throws ArgumentError unmatricize!(m, m, blockedpermvcat((1, 2), (3,)))
   end
 
   using TensorOperations: TensorOperations
   @testset "contract (eltype1=$elt1, eltype2=$elt2)" for elt1 in elts, elt2 in elts
+    elt_dest = promote_type(elt1, elt2)
+    a1 = ones(elt1, (1, 1))
+    a2 = ones(elt2, (1, 1))
+    a_dest = ones(elt_dest, (1, 1))
+    @test_throws ArgumentError contract(a1, (1, 2, 4), a2, (2, 3))
+    @test_throws ArgumentError contract(a1, (1, 2), a2, (2, 3, 4))
+    @test_throws ArgumentError contract((1, 3, 4), a1, (1, 2), a2, (2, 3))
+    @test_throws ArgumentError contract((1, 3), a1, (1, 2), a2, (2, 4))
+    @test_throws ArgumentError contract!(a_dest, (1, 3, 4), a1, (1, 2), a2, (2, 3))
+
     dims = (2, 3, 4, 5, 6, 7, 8, 9, 10)
     labels = (:a, :b, :c, :d, :e, :f, :g, :h, :i)
     for (d1s, d2s, d_dests) in (
@@ -155,8 +170,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
       # Don't specify destination labels
       a_dest, labels_dest′ = contract(a1, labels1, a2, labels2)
+      @test labels_dest′ isa
+        BlockedTuple{2,(length(setdiff(d1s, d2s)), length(setdiff(d2s, d1s)))}
       a_dest_tensoroperations = TensorOperations.tensorcontract(
-        labels_dest′, a1, labels1, a2, labels2
+        Tuple(labels_dest′), a1, labels1, a2, labels2
       )
       @test a_dest ≈ a_dest_tensoroperations
 
@@ -167,8 +184,18 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
       )
       @test a_dest ≈ a_dest_tensoroperations
 
+      # Specify with bituple
+      a_dest = contract(tuplemortar((labels_dest, ())), a1, labels1, a2, labels2)
+      @test a_dest ≈ a_dest_tensoroperations
+      a_dest = contract(tuplemortar(((), labels_dest)), a1, labels1, a2, labels2)
+      @test a_dest ≈ a_dest_tensoroperations
+      a_dest = contract(labels_dest′, a1, labels1, a2, labels2)
+      a_dest_tensoroperations = TensorOperations.tensorcontract(
+        Tuple(labels_dest′), a1, labels1, a2, labels2
+      )
+      @test a_dest ≈ a_dest_tensoroperations
+
       # Specify α and β
-      elt_dest = promote_type(elt1, elt2)
       # TODO: Using random `α`, `β` causing
       # random test failures, investigate why.
       α = elt_dest(1.2) # randn(elt_dest)
@@ -195,7 +222,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     a2 = randn(rng, elt2, 4, 5)
 
     a_dest, labels = contract(a1, ("i", "j"), a2, ("k", "l"))
-    @test labels == ("i", "j", "k", "l")
+    @test labels == tuplemortar((("i", "j"), ("k", "l")))
     @test eltype(a_dest) === elt_dest
     @test a_dest ≈ reshape(vec(a1) * transpose(vec(a2)), (size(a1)..., size(a2)...))
 
@@ -225,17 +252,17 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
     # Array-scalar contraction.
     a_dest, labels_dest = contract(a, labels_a, s, ())
-    @test labels_dest == labels_a
+    @test labels_dest == tuplemortar((labels_a, ()))
     @test a_dest ≈ a * s[]
 
     # Scalar-array contraction.
     a_dest, labels_dest = contract(s, (), a, labels_a)
-    @test labels_dest == labels_a
+    @test labels_dest == tuplemortar(((), labels_a))
     @test a_dest ≈ a * s[]
 
     # Scalar-scalar contraction.
     a_dest, labels_dest = contract(s, (), t, ())
-    @test labels_dest == ()
+    @test labels_dest == tuplemortar(((), ()))
     @test a_dest[] ≈ s[] * t[]
 
     # Specify output labels.
