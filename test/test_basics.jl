@@ -7,11 +7,13 @@ using TensorOperations: TensorOperations
 using TensorAlgebra:
   BlockedTuple,
   blockedpermvcat,
-  permuteblockeddims,
-  permuteblockeddims!,
   contract,
   contract!,
+  length_codomain,
+  length_domain,
   matricize,
+  permuteblockeddims,
+  permuteblockeddims!,
   tuplemortar,
   unmatricize,
   unmatricize!
@@ -20,6 +22,15 @@ default_rtol(elt::Type) = 10^(0.75 * log10(eps(real(elt))))
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
 @testset "TensorAlgebra" begin
+  @testset "misc" begin
+    t = (1, 2, 3)
+    bt = tuplemortar(((1, 2), (3,)))
+    @test length_codomain(t) == 0
+    @test length_codomain(bt) == 2
+    @test length_domain(t) == 3
+    @test length_domain(bt) == 1
+  end
+
   @testset "permuteblockeddims (eltype=$elt)" for elt in elts
     a = randn(elt, 2, 3, 4, 5)
     a_perm = permuteblockeddims(a, blockedpermvcat((3, 1), (2, 4)))
@@ -95,9 +106,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @test a ≈ a0
 
     bp = blockedpermvcat((4, 2), (1, 3))
-    a = unmatricize(m, map(i -> axes0[i], invperm(Tuple(bp))), bp)
+    bpinv = blockedpermvcat((3, 2), (4, 1))
+    a = unmatricize(m, map(i -> axes0[i], bp), bpinv)
     @test eltype(a) === elt
-    @test a ≈ permutedims(a0, invperm(Tuple(bp)))
+    @test a ≈ permutedims(a0, Tuple(bp))
 
     a = similar(a0)
     unmatricize!(a, m, blockedpermvcat((1, 2), (3, 4)))
@@ -109,7 +121,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
     a1 = permutedims(a0, Tuple(bp))
     a = similar(a1)
-    unmatricize!(a, m, invperm(bp))
+    unmatricize!(a, m, bpinv)
     @test a ≈ a1
 
     a = unmatricize(m, (), axes0)
