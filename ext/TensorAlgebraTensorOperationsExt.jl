@@ -1,9 +1,8 @@
 module TensorAlgebraTensorOperationsExt
 
-using TensorAlgebra: TensorAlgebra, BlockedPermutation, Algorithm
-using TupleTools
-using TensorOperations
-using TensorOperations: AbstractBackend, DefaultBackend
+using TensorAlgebra: TensorAlgebra, BlockedPermutation, Algorithm, blocklengths
+using TupleTools: TupleTools
+using TensorOperations: TensorOperations, AbstractBackend, DefaultBackend, Index2Tuple
 
 """
     TensorOperationsAlgorithm(backend::AbstractBackend)
@@ -44,8 +43,9 @@ function TensorAlgebra.contract(
   pA = _index2tuple(bipermA)
   pB = _index2tuple(bipermB)
   pAB = _index2tuple(bipermAB)
-
-  return tensorcontract(A, pA, false, B, pB, false, pAB, α, algorithm.backend)
+  return TensorOperations.tensorcontract(
+    A, pA, false, B, pB, false, pAB, α, algorithm.backend
+  )
 end
 
 function TensorAlgebra.contract(
@@ -62,7 +62,7 @@ function TensorAlgebra.contract(
 end
 
 # in-place
-function TensorAlgebra.contract!(
+function TensorAlgebra.contractadd!(
   algorithm::TensorOperationsAlgorithm,
   C::AbstractArray,
   bipermAB::BlockedPermutation,
@@ -76,10 +76,12 @@ function TensorAlgebra.contract!(
   pA = _index2tuple(bipermA)
   pB = _index2tuple(bipermB)
   pAB = _index2tuple(bipermAB)
-  return tensorcontract!(C, A, pA, false, B, pB, false, pAB, α, β, algorithm.backend)
+  return TensorOperations.tensorcontract!(
+    C, A, pA, false, B, pB, false, pAB, α, β, algorithm.backend
+  )
 end
 
-function TensorAlgebra.contract!(
+function TensorAlgebra.contractadd!(
   algorithm::TensorOperationsAlgorithm,
   C::AbstractArray,
   labelsC,
@@ -117,7 +119,7 @@ function TensorOperations.tensorcontract!(
   bipermAB = _blockedpermutation(pAB)
   A′ = conjA ? conj(A) : A
   B′ = conjB ? conj(B) : B
-  return TensorAlgebra.contract!(backend, C, bipermAB, A′, bipermA, B′, bipermB, α, β)
+  return TensorAlgebra.contractadd!(backend, C, bipermAB, A′, bipermA, B′, bipermB, α, β)
 end
 
 # For now no trace/add is supported, so simply reselect default backend from TensorOperations

@@ -1,6 +1,6 @@
 using LinearAlgebra: mul!
 
-function contract!(
+function contractadd!(
   ::Matricize,
   a_dest::AbstractArray,
   biperm_dest::AbstractBlockPermutation{2},
@@ -17,6 +17,6 @@ function contract!(
   a1_mat = matricize(a1, biperm1)
   a2_mat = matricize(a2, biperm2)
   a_dest_mat = a1_mat * a2_mat
-  unmatricize_add!(a_dest, a_dest_mat, invbiperm, α, β)
+  unmatricizeadd!(a_dest, a_dest_mat, invbiperm, α, β)
   return a_dest
 end
