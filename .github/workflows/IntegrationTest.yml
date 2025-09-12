@@ -19,6 +19,7 @@ jobs:
          pkg:
            - 'BlockSparseArrays'
            - 'FusionTensors'
+           - 'ITensorBase'
            - 'NamedDimsArrays'
     uses: "ITensor/ITensorActions/.github/workflows/IntegrationTest.yml@main"
     with:
