@@ -19,6 +19,7 @@ jobs:
          pkg:
            - 'BlockSparseArrays'
            - 'FusionTensors'
+           - 'GradedArrays'
            - 'ITensorBase'
            - 'KroneckerArrays'
            - 'NamedDimsArrays'
